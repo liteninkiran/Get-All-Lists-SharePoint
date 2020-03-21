@@ -95,10 +95,7 @@ namespace SharePoint_Example
             ListItemCollection collListItem = oList.GetItems(camlQuery);
 
             // Load in the items
-            //clientContext.Load(collListItem, items => items.IncludeWithDefaultProperties(item => item.DisplayName));
             clientContext.Load(collListItem);
-
-            // Yeah, not really sure what any of this is actually doing
             clientContext.ExecuteQuery();
 
             // Initialise row counter
