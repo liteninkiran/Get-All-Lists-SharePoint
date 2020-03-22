@@ -18,15 +18,71 @@ namespace SharePoint_Example
 
             // Set the Client Context
             ClientContext clientContext = GetClient(siteUrl, userName, passWord);
-
+/*
             // Loop through all lists
-            ListLoop(clientContext);
+            LoopThroughAllLists(clientContext);
+
+            // Loop through all fields in specified list
+            FieldLoop(clientContext, "List Name");
+*/
+            // Find all lists with specified field name
+            FindLists(clientContext, "Field Name");
 
             // Await user response
             Console.ReadLine();
         }
 
-        static void ListLoop(ClientContext clientContext)
+        static void FindLists(ClientContext clientContext, string fieldName)
+        {
+            // Define website object
+            Web oWebsite = clientContext.Web;
+
+            // Store lists in a collection
+            ListCollection collList = oWebsite.Lists;
+
+            // Retreive lists
+            clientContext.Load(collList);
+            clientContext.ExecuteQuery();
+
+            // Loop through each list in the collection
+            foreach (SP.List oList in collList)
+            {
+                // Store the internal field name
+                string fieldNameIntl = HasField(clientContext, oList, fieldName);
+
+                // Output list name
+                if(fieldNameIntl != "")
+                {
+                    Console.WriteLine("List Name: {0} {1} ({2})", oList.Title, fieldName, fieldNameIntl);
+                }
+            }
+        }
+
+        public static string HasField(ClientContext clientContext, SP.List oList, string fieldName)
+        {
+            // Retrieve the fields
+            SP.FieldCollection collField = oList.Fields;
+
+            // Load list & fields
+            clientContext.Load(collField);
+            clientContext.ExecuteQuery();
+
+            // Loop through fields
+            foreach (SP.Field oField in collField)
+            {
+                // Check if field's title matches the specified field name
+                if(oField.Title == fieldName)
+                {
+                    // Return the internal name for use later on
+                    return oField.InternalName;
+                }
+            }
+
+            // Return an empty string if the field wasn't found
+            return "";
+        }
+
+        static void LoopThroughAllLists(ClientContext clientContext)
         {
             // Define website object
             Web oWebsite = clientContext.Web;
@@ -41,6 +97,7 @@ namespace SharePoint_Example
             // Initialise row counter
             int i = 0;
 
+            // Loop through each list in the collection
             foreach (SP.List oList in collList)
             {
                 // Increment counter
@@ -50,7 +107,7 @@ namespace SharePoint_Example
                 Console.WriteLine("Row: {0} Title: {1} Created: {2}", i, oList.Title, oList.Created.ToString());
 
                 // Loop through items in list
-                ItemListLoop(clientContext, oList.Title);
+                LoopThroughAllItems(clientContext, oList.Title);
 
                 // Only print first 10 lists
                 if (i >= 10)
@@ -77,10 +134,11 @@ namespace SharePoint_Example
             // Enter credentials
             clientContext.Credentials = new SharePointOnlineCredentials(userName, secPassWord);
 
+            // Return the object
             return clientContext;
         }
 
-        public static void ItemListLoop(ClientContext clientContext, string listName)
+        public static void LoopThroughAllItems(ClientContext clientContext, string listName)
         {
             // Retrieve the list
             SP.List oList = clientContext.Web.Lists.GetByTitle(listName);
@@ -108,10 +166,10 @@ namespace SharePoint_Example
                 i++;
 
                 // Output something from the list
-                Console.WriteLine("    Row: {0} ID: {1} Title: {3}", i, oListItem.Id, oListItem["Title"]);
+                Console.WriteLine("    Row: {0} ID: {1} Title: {2}", i, oListItem.Id, oListItem["Title"]);
 
                 // Only print first 10 records
-                if(i >= 10)
+                if (i >= 10)
                 {
                     break;
                 }
@@ -120,5 +178,29 @@ namespace SharePoint_Example
             // Print out a line break
             Console.WriteLine("");
         }
+
+        public static void FieldLoop(ClientContext clientContext, string listName)
+        {
+            // Retrieve the list
+            SP.List oList = clientContext.Web.Lists.GetByTitle(listName);
+
+            // Retrieve the fields
+            SP.FieldCollection collField = oList.Fields;
+
+            // Load list & fields
+            clientContext.Load(oList);
+            clientContext.Load(collField);
+            clientContext.ExecuteQuery();
+
+            // Loop through fields
+            foreach(SP.Field oField in collField)
+            {
+                Console.WriteLine("List: {0} \n\t Field Title: {1} \n\t Field Internal Name: {2}", oList.Title, oField.Title, oField.InternalName);
+            }
+
+            // Print out a line break
+            Console.WriteLine("");
+        }
+
     }
 }
