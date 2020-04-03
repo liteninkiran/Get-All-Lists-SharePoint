@@ -16,20 +16,96 @@ namespace SharePoint_Example
             string userName = "person@domain.com";
             string passWord = "my-password";
 
+            // Define object names
+            string listName = "List Name";
+            string fieldName = "Field Name";
+            int itemId = 1;
+
             // Set the Client Context
             ClientContext clientContext = GetClient(siteUrl, userName, passWord);
-/*
+
+            // Loop through all versions of an item in a list
+            LoopThroughAllVersions(clientContext, listName, itemId);
+
+            // Await user response
+            Console.ReadLine();
+
+            // Exit procedure
+            return;
+
             // Loop through all lists
             LoopThroughAllLists(clientContext);
 
             // Loop through all fields in specified list
-            FieldLoop(clientContext, "List Name");
-*/
-            // Find all lists with specified field name
-            FindLists(clientContext, "Field Name");
+            FieldLoop(clientContext, listName);
 
-            // Await user response
-            Console.ReadLine();
+            // Find all lists with specified field name
+            FindLists(clientContext, fieldName);
+        }
+
+        static void LoopThroughAllVersions(ClientContext clientContext, string listName, int id)
+        {
+            // Find the specified list
+            SP.List oList = clientContext.Web.Lists.GetByTitle(listName);
+
+            // Find the specified item
+            SP.ListItem oListItem = oList.GetItemById(id);
+
+            // Load the Item
+            clientContext.Load(oListItem);
+
+            // Load the Versions
+            clientContext.Load(oListItem.Versions);
+
+            // Do this bit
+            clientContext.ExecuteQuery();
+
+            // Print out the item identifier
+            Console.WriteLine(oListItem["Title"] + " Previous Versions");
+            Console.WriteLine("");
+
+            // Loop through each Version
+            foreach(SP.ListItemVersion versionItem in oListItem.Versions)
+            {
+                // Output something about the version
+                Console.WriteLine("VersionLabel: " + versionItem.VersionLabel);
+                Console.WriteLine("IsCurrentVersion: " + versionItem.IsCurrentVersion);
+                Console.WriteLine("Created: " + versionItem.Created);
+                Console.WriteLine("CreatedBy: " + versionItem.CreatedBy);
+                Console.WriteLine("");
+
+                // Output field values
+                foreach (var a in versionItem.FieldValues)
+                {
+                    // Reset variable
+                    string fieldVal = "";
+
+                    // Check for NULL
+                    if(a.Value != null)
+                    {
+                        // Store value
+                        fieldVal = a.Value.ToString();
+                    }
+
+                    // Output field name and value
+                    Console.WriteLine(a.Key + ": " + fieldVal);
+                }
+/*
+                // Retrieve the fields
+                SP.FieldCollection collField = versionItem.Fields;
+
+                clientContext.Load(collField);
+                clientContext.ExecuteQuery();
+
+                // Loop through fields
+                foreach (SP.Field oField in collField)
+                {
+                    Console.WriteLine("{1}: {2}", oField.Title, oListItem.FieldValues["Job Number"]);
+                    i++;
+                }
+*/
+                Console.WriteLine("");
+            }
         }
 
         static void FindLists(ClientContext clientContext, string fieldName)
