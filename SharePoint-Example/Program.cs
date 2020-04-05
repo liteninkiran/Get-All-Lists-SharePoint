@@ -24,14 +24,23 @@ namespace SharePoint_Example
             // Set the Client Context
             ClientContext clientContext = GetClient(siteUrl, userName, passWord);
 
-            // Loop through all versions of an item in a list
-            LoopThroughAllVersions(clientContext, listName, itemId);
+            // Find last status change
+            FindStatusChange(clientContext, listName);
 
             // Await user response
             Console.ReadLine();
 
             // Exit procedure
             return;
+
+            // Loop through all versions of an item in a list
+            LoopThroughAllVersions(clientContext, listName, itemId);
+
+            // Loop through all fields in a list
+            LoopThroughAllFields(clientContext, listName);
+
+            // Loop through all versions of an item in a list
+            LoopThroughAllVersions(clientContext, listName, itemId);
 
             // Loop through all lists
             LoopThroughAllLists(clientContext);
@@ -41,6 +50,93 @@ namespace SharePoint_Example
 
             // Find all lists with specified field name
             FindLists(clientContext, fieldName);
+        }
+
+        static void FindStatusChange(ClientContext clientContext, string listName)
+        {
+            // Find the specified list
+            SP.List oList = clientContext.Web.Lists.GetByTitle(listName);
+
+            // Create a new Caml Query
+            CamlQuery camlQuery = new CamlQuery();
+
+            // Set the XML
+            camlQuery.ViewXml = "<View><Query>{0}</Query></View>";
+
+            // Define a collection to store the list items in
+            ListItemCollection collListItem = oList.GetItems(camlQuery);
+
+            // Load in the items
+            clientContext.Load(collListItem);
+            clientContext.ExecuteQuery();
+
+            // Store field names
+            string jobField = "Title";
+            string statusField = "Status";
+            string statusValue = "Commissioned";
+
+            // Create a blank version object
+            SP.ListItemVersion commVersion = null;
+
+            // Loop through each item in the collection
+            foreach (ListItem oListItem in collListItem)
+            {
+                // Load the Versions
+                clientContext.Load(oListItem.Versions);
+                clientContext.ExecuteQuery();
+
+                // Store details of the item
+                string job = oListItem[jobField].ToString().Trim();
+                string status = oListItem[statusField].ToString().Trim();
+
+                // Store output strings
+                string created = null;
+                string versionLabel = null;
+                string versionCount = oListItem.Versions.Count.ToString();
+
+                // Find the earliest version where Status has been set to our chosen value
+                commVersion = CheckHistory(clientContext, oListItem, statusField, statusValue);
+
+                // If we found a version, store the details
+                if (commVersion != null)
+                {
+                    created = commVersion.Created.ToString();
+                    versionLabel = commVersion.VersionLabel;
+                }
+
+                Console.WriteLine("{0},{1},{2},{3},{4}", job, created, versionLabel, versionCount, status);
+            }
+        }
+        
+        public static SP.ListItemVersion CheckHistory(ClientContext clientContext, SP.ListItem oListItem, string statusField, string statusValue)
+        {
+            // Create a blank object to return
+            SP.ListItemVersion commVersion = null;
+
+            // Store the status change date
+            DateTime commDate = new DateTime();
+
+            // Loop through each Version
+            foreach (SP.ListItemVersion versionItem in oListItem.Versions)
+            {
+                // Store the status value
+                string status = versionItem[statusField].ToString();
+
+                // If we have a matching status, then store the earliest version
+                if(status == statusValue)
+                {
+                    // Check against this version's create date. Dates start on year 0001, so check that too.
+                    if(versionItem.Created < commDate || commDate.Year == 1)
+                    {
+                        // We found an earlier version
+                        commDate = versionItem.Created;
+                        commVersion = versionItem;
+                    }
+                }
+            }
+
+            // Return the earliest version where the status value matches the supplied value
+            return commVersion;
         }
 
         static void LoopThroughAllVersions(ClientContext clientContext, string listName, int id)
@@ -74,37 +170,41 @@ namespace SharePoint_Example
                 Console.WriteLine("CreatedBy: " + versionItem.CreatedBy);
                 Console.WriteLine("");
 
-                // Output field values
-                foreach (var a in versionItem.FieldValues)
-                {
-                    // Reset variable
-                    string fieldVal = "";
-
-                    // Check for NULL
-                    if(a.Value != null)
-                    {
-                        // Store value
-                        fieldVal = a.Value.ToString();
-                    }
-
-                    // Output field name and value
-                    Console.WriteLine(a.Key + ": " + fieldVal);
-                }
-/*
                 // Retrieve the fields
                 SP.FieldCollection collField = versionItem.Fields;
 
                 clientContext.Load(collField);
                 clientContext.ExecuteQuery();
 
+                int i = 0;
+
                 // Loop through fields
-                foreach (SP.Field oField in collField)
+                foreach(SP.Field oField in collField)
                 {
-                    Console.WriteLine("{1}: {2}", oField.Title, oListItem.FieldValues["Job Number"]);
-                    i++;
+                    string fieldName = oField.Title;
+                    string fieldValue = "null";
+
+                    try
+                    {
+                        if (oListItem[oField.InternalName] != null)
+                        {
+                            fieldValue = versionItem[oField.InternalName].ToString();
+                        }
+                    }
+                    catch(Exception e)
+                    {
+                        fieldName = oField.InternalName;
+                        fieldValue = "Error";
+                    }
+                    finally
+                    {
+                        Console.WriteLine("{0}) {1}: {2}", i, fieldName, fieldValue);
+                        i++;
+                    }
                 }
-*/
+
                 Console.WriteLine("");
+                Console.ReadLine();
             }
         }
 
@@ -131,6 +231,32 @@ namespace SharePoint_Example
                 {
                     Console.WriteLine("List Name: {0} {1} ({2})", oList.Title, fieldName, fieldNameIntl);
                 }
+            }
+        }
+
+        static void LoopThroughAllFields(ClientContext clientContext, string listName)
+        {
+            // Find the specified list
+            SP.List oList = clientContext.Web.Lists.GetByTitle(listName);
+
+            // Retrieve the fields
+            SP.FieldCollection collField = oList.Fields;
+
+            // Load list & fields
+            clientContext.Load(collField);
+            clientContext.ExecuteQuery();
+
+            int i = 0;
+
+            // Loop through fields
+            foreach (SP.Field oField in collField)
+            {
+                i++;
+
+                Console.WriteLine("{0} Title         : {1}", i, oField.Title);
+                Console.WriteLine("{0} Internal Name : {1}", i, oField.InternalName);
+                Console.WriteLine("{0} Type          : {1}", i, oField.TypeAsString);
+                Console.WriteLine("");
             }
         }
 
