@@ -10,11 +10,11 @@ namespace SharePoint_Example
         static void Main()
         {
             // Define the site URL
-            string siteUrl = "https://mysite.sharepoint.com/";
+            string siteUrl = "https://my.sharepoint.site.com";
 
             // Define credentials
-            string userName = "person@domain.com";
-            string passWord = "my-password";
+            string userName = "myemail@domain.com";
+            string passWord = "MyPassword";
 
             // Define object names
             string listName = "List Name";
@@ -24,14 +24,19 @@ namespace SharePoint_Example
             // Set the Client Context
             ClientContext clientContext = GetClient(siteUrl, userName, passWord);
 
-            // Find last status change
-            FindStatusChange(clientContext, listName);
+            LoopThroughAllLists(clientContext);
 
             // Await user response
             Console.ReadLine();
 
             // Exit procedure
             return;
+
+            // Count the number of versions of all items in a list
+            VersionCount(clientContext, listName);
+
+            // Find last status change
+            FindStatusChange(clientContext, listName);
 
             // Loop through all versions of an item in a list
             LoopThroughAllVersions(clientContext, listName, itemId);
@@ -52,6 +57,43 @@ namespace SharePoint_Example
             FindLists(clientContext, fieldName);
         }
 
+        static void VersionCount(ClientContext clientContext, string listName)
+        {
+            // Find the specified list
+            SP.List oList = clientContext.Web.Lists.GetByTitle(listName);
+
+            // Create a new Caml Query
+            CamlQuery camlQuery = new CamlQuery();
+
+            // Set the XML
+            camlQuery.ViewXml = "<View><Query>{0}</Query></View>";
+
+            // Define a collection to store the list items in
+            ListItemCollection collListItem = oList.GetItems(camlQuery);
+
+            // Load in the items
+            clientContext.Load(collListItem);
+            clientContext.ExecuteQuery();
+
+            int i = 0;
+
+            // Loop through each item in the collection
+            foreach (ListItem oListItem in collListItem)
+            {
+                // Load the Versions
+                clientContext.Load(oListItem.Versions);
+                clientContext.ExecuteQuery();
+
+                int verCount = oListItem.Versions.Count;
+
+                i += verCount;
+
+                Console.WriteLine("{0},{1},{2},{3}", oListItem["Title"].ToString().Trim(), verCount, oListItem.Versions[0].VersionLabel, oListItem.Versions[verCount - 1].VersionLabel);
+            }
+
+            Console.WriteLine(i);
+        }
+        
         static void FindStatusChange(ClientContext clientContext, string listName)
         {
             // Find the specified list
@@ -157,18 +199,18 @@ namespace SharePoint_Example
             clientContext.ExecuteQuery();
 
             // Print out the item identifier
-            Console.WriteLine(oListItem["Title"] + " Previous Versions");
-            Console.WriteLine("");
+            //Console.WriteLine(oListItem["Title"] + " Previous Versions");
+            //Console.WriteLine("");
 
             // Loop through each Version
             foreach(SP.ListItemVersion versionItem in oListItem.Versions)
             {
                 // Output something about the version
-                Console.WriteLine("VersionLabel: " + versionItem.VersionLabel);
-                Console.WriteLine("IsCurrentVersion: " + versionItem.IsCurrentVersion);
-                Console.WriteLine("Created: " + versionItem.Created);
-                Console.WriteLine("CreatedBy: " + versionItem.CreatedBy);
-                Console.WriteLine("");
+                //Console.WriteLine("VersionLabel: " + versionItem.VersionLabel);
+                //Console.WriteLine("IsCurrentVersion: " + versionItem.IsCurrentVersion);
+                //Console.WriteLine("Created: " + versionItem.Created);
+                //Console.WriteLine("CreatedBy: " + versionItem.CreatedBy);
+                //Console.WriteLine("");
 
                 // Retrieve the fields
                 SP.FieldCollection collField = versionItem.Fields;
@@ -178,8 +220,10 @@ namespace SharePoint_Example
 
                 int i = 0;
 
+                Console.WriteLine("0,Version,{0}", versionItem.VersionLabel);
+
                 // Loop through fields
-                foreach(SP.Field oField in collField)
+                foreach (SP.Field oField in collField)
                 {
                     string fieldName = oField.Title;
                     string fieldValue = "null";
@@ -193,18 +237,18 @@ namespace SharePoint_Example
                     }
                     catch(Exception e)
                     {
-                        fieldName = oField.InternalName;
+                        //fieldName = oField.InternalName;
                         fieldValue = "Error";
                     }
                     finally
                     {
-                        Console.WriteLine("{0}) {1}: {2}", i, fieldName, fieldValue);
                         i++;
+                        Console.WriteLine("{0},{1},{2}", i, fieldName, '"' + fieldValue + '"');
                     }
                 }
-
+                
                 Console.WriteLine("");
-                Console.ReadLine();
+                //Console.ReadLine();
             }
         }
 
@@ -248,15 +292,80 @@ namespace SharePoint_Example
 
             int i = 0;
 
+            string[] lines = new string[20];
+
             // Loop through fields
             foreach (SP.Field oField in collField)
             {
-                i++;
+                string line = "";
+
+                if (oField.TypeAsString == "Calculated")
+                {
+                    FieldCalculated calcField = (FieldCalculated)oField;
+
+                    string formula = calcField.Formula;
+                    string fieldName = calcField.Title;
+
+                    line = listName.PadRight(50) + fieldName.PadRight(40) + formula;
+
+                    Console.WriteLine(line);
+
+                    lines[i] = line;
+
+                    i++;
+                }
+            }
+
+            if (i > 0)
+            {
+                System.IO.File.WriteAllLines(@"C:\Temp\Output - " + listName + ".txt", lines);
+            }
+
+            /*
+            // Loop through fields
+            foreach (SP.Field oField in collField)
+            {
+                i++;                
 
                 Console.WriteLine("{0} Title         : {1}", i, oField.Title);
                 Console.WriteLine("{0} Internal Name : {1}", i, oField.InternalName);
                 Console.WriteLine("{0} Type          : {1}", i, oField.TypeAsString);
                 Console.WriteLine("");
+
+                // Only print first 10 fields
+                if (i >= 10)
+                {
+                    break;
+                }
+            }
+            */
+        }
+
+        static void OutputAllFields(ClientContext clientContext, SP.List oList)
+        {
+            // Retrieve the fields
+            SP.FieldCollection collField = oList.Fields;
+
+            // Load list & fields
+            clientContext.Load(collField);
+            clientContext.ExecuteQuery();
+
+            int i = 0;
+
+            foreach (SP.Field oField in collField)
+            {
+                i++;
+
+                string formula = "";
+
+                if (oField.TypeAsString == "Calculated")
+                {
+                    FieldCalculated calcField = (FieldCalculated)oField;
+                    formula = calcField.Formula;
+                }
+
+                Console.WriteLine("{0}|{1}|{2}|{3}|{4}|{5}|{6}|{7}|{8}|{9}|{10}", oList.Id, oField.Id, i, oField.Title, oField.InternalName, oField.TypeAsString, oField.DefaultValue, oField.EnforceUniqueValues, oField.Required, oField.ReadOnlyField, formula);
+
             }
         }
 
@@ -296,6 +405,7 @@ namespace SharePoint_Example
             clientContext.Load(collList);
             clientContext.ExecuteQuery();
 
+
             // Initialise row counter
             int i = 0;
 
@@ -305,16 +415,24 @@ namespace SharePoint_Example
                 // Increment counter
                 i++;
 
+                // Load views & fields
+                //clientContext.Load(oList.Views);
+                //clientContext.Load(oList.Fields);
+                //clientContext.ExecuteQuery();
+
                 // Output list name
-                Console.WriteLine("Row: {0} Title: {1} Created: {2}", i, oList.Title, oList.Created.ToString());
+                //Console.WriteLine("{0}|{1}|{2}|{3}|{4}|{5}|{6}|{7}|{8}|{9}|{10}", i, oList.Id, oList.Title, oList.Description, oList.ItemCount, oList.Views.Count, oList.Fields.Count, oList.Created, oList.LastItemDeletedDate, oList.LastItemModifiedDate, oList.LastItemUserModifiedDate);
 
                 // Loop through items in list
-                LoopThroughAllItems(clientContext, oList.Title);
+                //LoopThroughAllItems(clientContext, oList.Title);
+
+                // Loop through all fields
+                OutputAllFields(clientContext, oList);
 
                 // Only print first 10 lists
                 if (i >= 10)
                 {
-                    break;
+                    //break;
                 }
             }
         }
