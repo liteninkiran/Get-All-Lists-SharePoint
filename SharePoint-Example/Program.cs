@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Security;
+using Microsoft.Online.SharePoint.TenantAdministration;
 using Microsoft.SharePoint.Client;
 using SP = Microsoft.SharePoint.Client;
 
@@ -7,23 +8,24 @@ namespace SharePoint_Example
 {
     class Program
     {
-        static void Main()
+        static void Main1()
         {
             // Define the site URL
-            string siteUrl = "https://my.sharepoint.site.com";
+            string siteUrl = "https://sharepoint.com";
 
             // Define credentials
-            string userName = "myemail@domain.com";
-            string passWord = "MyPassword";
+            string userName = "";
+            string passWord = "";
 
             // Define object names
-            string listName = "List Name";
-            string fieldName = "Field Name";
-            int itemId = 1;
+            string listName = "";
+            string fieldName = "";
+            int itemId = 810;
 
             // Set the Client Context
             ClientContext clientContext = GetClient(siteUrl, userName, passWord);
 
+            // Loop through all lists
             LoopThroughAllLists(clientContext);
 
             // Await user response
@@ -31,6 +33,12 @@ namespace SharePoint_Example
 
             // Exit procedure
             return;
+
+            // Loop through recycle bin items
+            SiteCollectionLoop(clientContext);
+
+            // Loop through recycle bin items
+            RecycleBinLoop(clientContext);
 
             // Count the number of versions of all items in a list
             VersionCount(clientContext, listName);
@@ -55,6 +63,71 @@ namespace SharePoint_Example
 
             // Find all lists with specified field name
             FindLists(clientContext, fieldName);
+        }
+
+        static void SiteCollectionLoop(ClientContext clientContext)
+        {
+            Tenant tenant = new Tenant(clientContext);
+            SPOSitePropertiesEnumerable siteProps = tenant.GetSitePropertiesFromSharePoint("0", true);
+            clientContext.Load(siteProps);
+            clientContext.ExecuteQuery();
+            Console.WriteLine("Total Site Collections: " + siteProps.Count.ToString());
+            foreach (var site in siteProps)
+            {
+                Console.WriteLine(site.Title + "\t" + site.Template.ToString());
+            }
+        }
+        /*
+        static void SiteCollectionLoop(ClientContext clientContext)
+        {
+            var tenant = new Tenant(clientContext);
+            SPOSitePropertiesEnumerable spp = tenant.GetSiteProperties(0, true);
+
+            clientContext.Load(spp);
+            clientContext.ExecuteQuery();
+
+            foreach (SiteProperties sp in spp)
+            {
+                Console.WriteLine(sp.Title);
+            }
+        }
+        */
+        static void RecycleBinLoop(ClientContext clientContext)
+        {
+            // Store the site object
+            Site site = clientContext.Site;
+
+            // Store web
+            Web web = clientContext.Web;
+
+            RecycleBinItemCollection firstBin = site.RecycleBin;
+            RecycleBinItemCollection secondBin = web.RecycleBin;
+
+            // Load the recycle bin
+            clientContext.Load(firstBin);
+            clientContext.Load(secondBin);
+            clientContext.ExecuteQuery();
+
+            int i = 0;
+            /*
+            foreach (RecycleBinItem rbi in firstBin)
+            {
+                if(rbi.ItemType.ToString() == "ListItem")
+                {
+                    i++;
+                    Console.WriteLine("{0}|{1}|{2}|{3}|{4}|{5}|{6}|{7}", i, rbi.Title, rbi.DeletedByName, rbi.DeletedDate, rbi.ItemState, rbi.Id, rbi.DirName, rbi.LeafName);
+                }
+            }
+            */
+            foreach (RecycleBinItem rbi in secondBin)
+            {
+                if (rbi.ItemType.ToString() == "ListItem")
+                {
+                    i++;
+                    Console.WriteLine("{0}|{1}|{2}|{3}|{4}|{5}|{6}|{7}", i, rbi.Title, rbi.DeletedByName, rbi.DeletedDate, rbi.ItemState, rbi.Id, rbi.DirName, rbi.LeafName);
+                }
+            }
+            
         }
 
         static void VersionCount(ClientContext clientContext, string listName)
@@ -220,7 +293,7 @@ namespace SharePoint_Example
 
                 int i = 0;
 
-                Console.WriteLine("0,Version,{0}", versionItem.VersionLabel);
+                //Console.WriteLine("0,Version,{0}", versionItem.VersionLabel);
 
                 // Loop through fields
                 foreach (SP.Field oField in collField)
@@ -228,26 +301,29 @@ namespace SharePoint_Example
                     string fieldName = oField.Title;
                     string fieldValue = "null";
 
-                    try
+                    if(oField.TypeAsString != "Computed")
                     {
-                        if (oListItem[oField.InternalName] != null)
+                        try
                         {
-                            fieldValue = versionItem[oField.InternalName].ToString();
+                            if (oListItem[oField.InternalName] != null)
+                            {
+                                fieldValue = versionItem[oField.InternalName].ToString();
+                            }
                         }
-                    }
-                    catch(Exception e)
-                    {
-                        //fieldName = oField.InternalName;
-                        fieldValue = "Error";
-                    }
-                    finally
-                    {
-                        i++;
-                        Console.WriteLine("{0},{1},{2}", i, fieldName, '"' + fieldValue + '"');
+                        catch (Exception e)
+                        {
+                            //fieldName = oField.InternalName;
+                            fieldValue = "Error";
+                        }
+                        finally
+                        {
+                            i++;
+                            Console.WriteLine("{0},{1},{2},{3}", versionItem.VersionLabel, i, fieldName, '"' + fieldValue + '"');
+                        }
                     }
                 }
                 
-                Console.WriteLine("");
+                //Console.WriteLine("");
                 //Console.ReadLine();
             }
         }
@@ -421,18 +497,40 @@ namespace SharePoint_Example
                 //clientContext.ExecuteQuery();
 
                 // Output list name
-                //Console.WriteLine("{0}|{1}|{2}|{3}|{4}|{5}|{6}|{7}|{8}|{9}|{10}", i, oList.Id, oList.Title, oList.Description, oList.ItemCount, oList.Views.Count, oList.Fields.Count, oList.Created, oList.LastItemDeletedDate, oList.LastItemModifiedDate, oList.LastItemUserModifiedDate);
+                //Console.WriteLine("{0}|{1}|{2}|{3}|{4}|{5}|{6}|{7}|{8}|{9}|{10}|{11}|{12}|{13}|{14}", i, oList.Id, oList.Title, oList.Description, oList.ItemCount, oList.Views.Count, oList.Fields.Count, oList.Created, oList.LastItemDeletedDate, oList.LastItemModifiedDate, oList.LastItemUserModifiedDate, oList.EnableMinorVersions, oList.EnableVersioning, oList.MajorWithMinorVersionsLimit, oList.MajorVersionLimit);
+
+                string output = "{0}|{1}|{2}|{3}|{4}|{5}|{6}|{7}|{8}|{9}|{10}|{11}|{12}";
+
+                // Output list name
+                Console.WriteLine
+                (
+                    output, 
+                    i, 
+                    oList.Id, 
+                    oList.Title, 
+                    oList.Description, 
+                    oList.ItemCount, 
+                    oList.Created, 
+                    oList.LastItemDeletedDate, 
+                    oList.LastItemModifiedDate, 
+                    oList.LastItemUserModifiedDate, 
+                    oList.EnableMinorVersions, 
+                    oList.EnableVersioning, 
+                    oList.MajorWithMinorVersionsLimit, 
+                    oList.MajorVersionLimit
+                );
+
 
                 // Loop through items in list
                 //LoopThroughAllItems(clientContext, oList.Title);
 
                 // Loop through all fields
-                OutputAllFields(clientContext, oList);
+                //OutputAllFields(clientContext, oList);
 
                 // Only print first 10 lists
                 if (i >= 10)
                 {
-                    //break;
+                    break;
                 }
             }
         }
